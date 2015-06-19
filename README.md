@@ -138,8 +138,8 @@ If you do this, `save_stuff_to_db` needs to take a `process_persistent` paramete
     def save_stuff_to_db(stuff_to_be_saved, process_persistent):
 
 ### Syntactic sugar
-`add_origin` and `add_destination` are actually synonyms for `add_task`. mpetl automatically figures out if a function
-returns a single value or a generator and rolls with it.
+`add_origin` and `add_destination` are sort of synonyms for `add_task`. They will perform an `add_task` to the 
+beginning and end of the task list respectively.
 
 ### Conditional routing
 TBD
