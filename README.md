@@ -137,9 +137,28 @@ If you do this, `save_stuff_to_db` needs to take a `process_persistent` paramete
 
     def save_stuff_to_db(stuff_to_be_saved, process_persistent):
 
-### Syntactic sugar
-`add_origin` and `add_destination` are sort of synonyms for `add_task`. They will perform an `add_task` to the 
-beginning and end of the task list respectively.
+### add_origin and add_destination
+`add_origin` and `add_destination` behave like `add_task`. All origins will be executed in the chronological order 
+they are added. All destinations will be executed in the chronological order in which they are added. Origins always 
+execute before tasks, which always execute before destinations.
 
-### Conditional routing
+In other words, the following order of calls:
+```python
+
+pipeline.add_destination(function_1)
+pipeline.add_origin(function_2)
+pipeline.add_task(function_3)
+pipeline.add_task(function_4)
+pipeline.add_destination(function_5)
+pipeline.add_task(function_6)
+pipeline.add_origin(function_7)
+pipeline.add_task(function_8)
+```
+
+Will result in the following actual pipeline:
+```function_2 -> function_7 -> function_3 -> function_4 -> function_6 -> function_8 -> function_1 -> function_5```
+
+Don't say I didn't warn you. The idea is that you should write your pipelines in the order in which they execute.
+
+### Conditional routing, branching pipelines, etc.
 TBD
