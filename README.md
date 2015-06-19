@@ -1,6 +1,6 @@
 # MPETL
 
-An opinionated framework for big MultiProcessing Extract, Transform, Load jobs.
+An opinionated framework for big MultiProcessing Extract, Transform, Load jobs. Python 3 native.
 
 ©2015 Jorge Herskovic <first initial + last name @ gee mail dot com>
 
@@ -9,7 +9,7 @@ An opinionated framework for big MultiProcessing Extract, Transform, Load jobs.
 We write lots of large ETL jobs. Most of them start with slicing input into little pieces, then processing each of those
 pieces, then writing the results somewhere else. We tend to use Python's multiprocessing module for this, and many of
 our problems are embarrassingly parallel. But that use of multiprocessing leads to a lot of boilerplate code.
-Boilerplate that interfupts the flow of our programs and makes them look ugly and less readable.
+Boilerplate that interrupts the flow of our programs and makes them look ugly and less readable.
 
 Hence, MPETL. To only write this once and let the actual processing code take center stage.
 
