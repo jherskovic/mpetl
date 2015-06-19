@@ -45,7 +45,7 @@ def origin_function(text):
     return
 
 def process_line(one_line):
-    return one_line.upper()
+    return (one_line.upper(),)
 
 def destination_function(one_line):
     print(one_line)
