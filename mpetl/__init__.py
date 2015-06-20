@@ -108,7 +108,7 @@ class Pipeline(object):
         if self._actual_tasks is not None:
             raise SequenceError("You are trying to add a task to a pipeline that already started.")
 
-        return _QTask(callable, num, chunk_size, setup, teardown, kwargs)
+        return _QTask(callable, num, chunk_size, setup, teardown, **kwargs)
 
     def add_task(self, callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs):
         new_task = self._new_task(callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs)
@@ -142,9 +142,22 @@ class Pipeline(object):
 
         self._queues[0].put(item)
 
+    @property
+    def results_queue(self):
+        return self._queues[-1]
+
     def join(self):
         if self._actual_tasks is None:
             raise SequenceError("You are joining a pipeline that hasn't started.")
 
         [x.join() for x in self._actual_tasks]
+        self.results_queue.put(_Sentinel())
 
+    def as_completed(self):
+        while True:
+            result_chunk = self.results_queue.get()
+            if isinstance(result_chunk, _Sentinel):
+                break
+
+            for result in result_chunk:
+                yield result
