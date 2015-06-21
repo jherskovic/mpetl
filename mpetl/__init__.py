@@ -1,6 +1,7 @@
 __author__ = 'Jorge Herskovic <jherskovic@gmail.com>'
 
 import multiprocessing
+import inspect
 
 class SequenceError(Exception):
     pass
@@ -14,8 +15,8 @@ class _QTask(object):
     """Describes one task in a Pipeline."""
     def __init__(self, callable, num, chunk_size, setup, teardown, **kwargs):
         self._callable = callable
-        self._num = num
-        self._chunk_size = chunk_size
+        self._num = multiprocessing.cpu_count() if num is None or num < 1 else num
+        self._chunk_size = 1 if chunk_size is None or chunk_size < 1 else chunk_size
         self._setup = setup
         self._teardown = teardown
         self._kwargs = kwargs
@@ -28,12 +29,13 @@ class _QTask(object):
         if self._setup is not None:
             persistent = self._setup()
 
+        is_generator = inspect.isgeneratorfunction(self._callable)
+        outgoing_chunk = []
+
         while True:
             chunk = self._input.get()
             if isinstance(chunk, _Sentinel):
                 break
-
-            outgoing_chunk=[]
 
             for item in chunk:
                 if persistent is None:
@@ -47,28 +49,24 @@ class _QTask(object):
                     else:
                         result = self._callable(item, process_persistent=persistent, **self._kwargs)
 
-                if result is None:
-                    # Valueless function, or no result whatsoever.
-                    continue
-
-                if isinstance(result, tuple):
-                    outgoing_chunk.append(result)
-                    continue
-
-                # Try to iterate over the result. If it works, great.
-                try:
+                if is_generator:
                     for each_result in result:
                         outgoing_chunk.append(each_result)
-                except TypeError:
-                    # If not, no tears shed - just pass on the result.
+                        if len(outgoing_chunk) >= self._chunk_size:
+                            self._output.put(outgoing_chunk)
+                            outgoing_chunk = []
+                else:
+                    if result is None:
+                        # Valueless function, or no result whatsoever.
+                        pass
                     outgoing_chunk.append(result)
 
                 if len(outgoing_chunk) >= self._chunk_size:
                     self._output.put(outgoing_chunk)
                     outgoing_chunk = []
 
-            if len(outgoing_chunk) > 0:
-                self._output.put(outgoing_chunk)
+        if len(outgoing_chunk) > 0:
+           self._output.put(outgoing_chunk)
 
         if self._teardown is not None:
             self._teardown(persistent)
@@ -136,11 +134,16 @@ class Pipeline(object):
 
         return
 
-    def feed(self, item):
+    def feed_chunk(self, chunk):
+        """Takes a chunk of items (i.e. a list of items) and feeds them to the pipeline."""
         if self._actual_tasks is None:
             raise SequenceError("You are feeding a pipeline that hasn't started.")
 
-        self._queues[0].put(item)
+        self._queues[0].put(chunk)
+
+    def feed(self, item):
+        """Feeds a single item to the pipeline."""
+        self.feed_chunk([item])
 
     @property
     def results_queue(self):

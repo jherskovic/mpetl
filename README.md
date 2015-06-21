@@ -39,13 +39,13 @@ The lamb was sure to go.
 """
 
 def origin_function(text):
-    for line in text:
-        yield (line,)
+    for line in text.split('\n'):
+        yield line
 
     return
 
 def process_line(one_line):
-    return (one_line.upper(),)
+    return one_line.upper()
 
 def destination_function(one_line):
     print(one_line)
@@ -89,10 +89,10 @@ import os
 def read_file(filename):
     with open(filename) as f:
         for line in f:
-            yield (line,)
+            yield line
 
 def process_line(filename, line):
-    return (line.upper(),)
+    return line.upper()
 
 def write_output(filename, line, destination_path):
     with mpetl.Lockable(filename):
@@ -162,3 +162,17 @@ Don't say I didn't warn you. The idea is that you should write your pipelines in
 
 ### Conditional routing, branching pipelines, etc.
 TBD
+
+## Testing
+MPETL uses nose for its tests. Run `nosetests` in its root directory to execute all tests. The test suite, quite on 
+purpose, creates hundreds of processes. This can make the OS go over its file handle limit, especially on OS X out of 
+the box. The symptom is something like
+```
+OSError: [Errno 24] Too many open files
+```
+
+In this case, run
+```
+$ ulimit -n 2048
+```
+to increase the OS file handle limit before running the tests.

@@ -5,7 +5,7 @@ import multiprocessing
 from mpetl import _QTask
 
 def null_task(parameter):
-    return (parameter,)
+    return parameter
 
 
 def kwarg_task(parameter, another_parameter):
@@ -32,7 +32,7 @@ def teardown_process(external):
 
 def do_something_external(parameter, process_persistent):
     process_persistent['sekrit'] = parameter
-    return (parameter,)
+    return parameter
 
 
 class test_qtask(unittest.TestCase):
@@ -53,7 +53,7 @@ class test_qtask(unittest.TestCase):
         self.input_q = multiprocessing.Queue()
         self.output_q = multiprocessing.Queue()
         kwarg_qtask.instantiate(self.input_q, self.output_q)
-        self.input_q.put(('Bar',))
+        self.input_q.put(['Bar'])
         kwarg_qtask.join()
         self.assertEqual([('Bar', 'Foo')], self.output_q.get())
 
@@ -77,10 +77,10 @@ class test_qtask(unittest.TestCase):
 
     def test_process_one_thing(self, num=1, chunk_size=1):
         self.create_and_instantiate(num, chunk_size)
-        self.input_q.put(("Hello",))
+        self.input_q.put(["Hello",])
         self.qtask.join()
         # Remember that internally we pass lists
-        self.assertEqual(self.output_q.get(), [("Hello",)])
+        self.assertEqual(self.output_q.get(), ["Hello"])
 
     def test_process_one_thing_with_four_processes(self):
         self.test_process_one_thing(4)
@@ -93,18 +93,44 @@ class test_qtask(unittest.TestCase):
 
     def test_process_one_thousand_things(self, num=1, chunk_size=1):
         self.create_and_instantiate(num, chunk_size)
-        [self.input_q.put((x,)) for x in range(1000)]
+        [self.input_q.put([x]) for x in range(1000)]
         self.qtask.join()
 
-        # There's no guarantee that the results are in order, so we must test them as sets
-        result = set(self.output_q.get()[0][0] for x in range(1000))
-        self.assertEqual(result, set(x for x in range(1000)))
+        # There's no guarantee that the results are in order, and we get chunks, so...
+        result = []
+        while True:
+            result += self.output_q.get()
+            if set(result) == set(x for x in range(1000)):
+                break
 
-    def test_process_1000_things_63_processes(self):
-        self.test_process_one_thousand_things(63)
+    def test_originally_chunked_things(self, num=1, chunk_size=1):
+        self.create_and_instantiate(num, chunk_size)
+        counter = 0
+        for i in range(100):
+            data = []
+            for j in range(7):
+                data.append(counter)
+                counter += 1
+            self.input_q.put(data)
+        self.qtask.join()
+        # There's no guarantee that the results are in order, and we get chunks, so...
+        result = []
+        while True:
+            result += self.output_q.get()
+            if set(result) == set(x for x in range(700)):
+                break
 
-    def test_process_1000_things_63_processes_prime_chunks(self):
-        self.test_process_one_thousand_things(63, 7)
+    def test_process_1000_things_7_processes(self):
+        self.test_process_one_thousand_things(7)
+
+    def test_process_1000_things_7_processes_prime_chunks(self):
+        self.test_process_one_thousand_things(7, 7)
+
+    def test_process_1000_things_63_processes_63_chunks(self):
+        self.test_process_one_thousand_things(63, 63)
+
+    def test_originally_chunked_things_parallel(self):
+        self.test_originally_chunked_things(63, 11)
 
     def test_process_setup_and_teardown(self):
         global EXTERNAL_STORE
@@ -113,8 +139,8 @@ class test_qtask(unittest.TestCase):
         self.input_q = multiprocessing.Queue()
         self.output_q = multiprocessing.Queue()
         self.qtask.instantiate(self.input_q, self.output_q)
-        self.input_q.put(("Hello",))
-        self.assertEqual(self.output_q.get(), [("Hello",)])
+        self.input_q.put(["Hello",])
+        self.assertEqual(self.output_q.get(), ["Hello"])
         # Processing should have finished, and the EXTERNAL STORE should therefore contain "Hello" in "sekrit"...
         # but in the other process, so we can't test it here. The teardown process DOES test it, though.
         self.qtask.join()
