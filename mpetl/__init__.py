@@ -66,7 +66,7 @@ class _QTask(object):
                     outgoing_chunk = []
 
         if len(outgoing_chunk) > 0:
-           self._output.put(outgoing_chunk)
+            self._output.put(outgoing_chunk)
 
         if self._teardown is not None:
             self._teardown(persistent)
@@ -86,7 +86,9 @@ class _QTask(object):
         if len(self._processes) == 0:
             return
 
-        [self._input.put(_Sentinel()) for x in self._processes]
+        quit_token = _Sentinel()
+
+        [self._input.put(quit_token) for x in self._processes]
         [x.join() for x in self._processes]
         return
 
@@ -150,6 +152,8 @@ class Pipeline(object):
         return self._queues[-1]
 
     def join(self):
+        """Signals the end of processing, then waits for the associated tasks to end. Once the tasks end,
+        puts an end-of processing _Sentinel marker in the outgoing queue."""
         if self._actual_tasks is None:
             raise SequenceError("You are joining a pipeline that hasn't started.")
 
