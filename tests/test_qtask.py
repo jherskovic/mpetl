@@ -2,7 +2,8 @@ __author__ = 'jrherskovic'
 
 import unittest
 import multiprocessing
-from mpetl import _QTask
+from mpetl.pipeline import _QTask
+
 
 def null_task(parameter):
     return parameter

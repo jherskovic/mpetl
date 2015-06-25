@@ -52,7 +52,7 @@ def destination_function(one_line):
 
 
 if __name__ == "__main__":
-   pipeline = mpetl.Pipeline()
+   pipeline = mpetl._Pipeline()
    pipeline.add_origin(origin_function)
    pipeline.add_task(process_line)
    pipeline.add_destination(destination_function)
@@ -76,7 +76,7 @@ Also, this example illustrates a common pattern - a Lockable. Since we can't wri
 simultaneously, we use a Lockable to create a multiprocessing lock around a resource (in this case, the destination
 file). Lockables consume memory until their respective origin expires and its processing is finished. Lockables go hand
 in hand with the decorate-process-undecorate pattern, and as such mpetl needs to know it will be used. You can do this
-by creating a DecoratedPipeline instead of a base Pipeline. For the same reason, you may ONLY create a Lockable around
+by creating a DecoratedPipeline instead of a base _Pipeline. For the same reason, you may ONLY create a Lockable around
 the Decorator. Any calls to Lockable where the decorator hasn't been seen before as the output of an origin function
 will fail. DecoratedPipelines will auto-decorate the output of a function for you, but you're responsible for 
 receiving it and doing something meaningful with it.

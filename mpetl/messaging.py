@@ -1,14 +1,13 @@
 __author__ = 'Jorge R. Herskovic <jherskovic@gmail.com>'
 
 import multiprocessing
-import multiprocessing.connection
 import threading
 import collections
 import random
 import logging
 import traceback
 
-from mpetl import _Sentinel
+from mpetl.pipeline import _Sentinel
 
 pipeline_message = collections.namedtuple("pipeline_message", ["destination", "data"])
 registration_message = collections.namedtuple("registration_message", ["name", "queue"])
@@ -63,7 +62,6 @@ class MessagingCenter(multiprocessing.Process):
         while True:
             item = internal_queue.get()
             if isinstance(item, _Sentinel):
-                del internal_queue
                 return
             queue.put(item)
 

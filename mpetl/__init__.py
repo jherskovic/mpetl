@@ -1,170 +1,47 @@
 __author__ = 'Jorge Herskovic <jherskovic@gmail.com>'
 
-import multiprocessing
-import inspect
-
-class SequenceError(Exception):
-    pass
+from .pipeline import _Pipeline
+from .messaging import MessagingCenter
 
 
-class _Sentinel(object):
-    pass
+# The following class is the one actually meant for instantiation by clients of this library.
+# DO NOT use _Pipeline. Use Pipeline.
+class Pipeline(_Pipeline):
+    _messaging = None
 
+    def __init__(self, name=None, max_size=-1):
+        super().__init__(max_size)
+        self._name = name
 
-class _QTask(object):
-    """Describes one task in a Pipeline."""
-    def __init__(self, callable, num, chunk_size, setup, teardown, **kwargs):
-        self._callable = callable
-        self._num = multiprocessing.cpu_count() if num is None or num < 1 else num
-        self._chunk_size = 1 if chunk_size is None or chunk_size < 1 else chunk_size
-        self._setup = setup
-        self._teardown = teardown
-        self._kwargs = kwargs
-        self._processes = []
-        self._input = None
-        self._output = None
-
-    def _run_in_process(self):
-        persistent = None
-        if self._setup is not None:
-            persistent = self._setup()
-
-        is_generator = inspect.isgeneratorfunction(self._callable)
-        outgoing_chunk = []
-
-        while True:
-            chunk = self._input.get()
-            if isinstance(chunk, _Sentinel):
-                break
-
-            for item in chunk:
-                if persistent is None:
-                    if isinstance(item, tuple):
-                        result = self._callable(*item, **self._kwargs)
-                    else:
-                        result = self._callable(item, **self._kwargs)
-                else:
-                    if isinstance(item, tuple):
-                        result = self._callable(*item, process_persistent=persistent, **self._kwargs)
-                    else:
-                        result = self._callable(item, process_persistent=persistent, **self._kwargs)
-
-                if is_generator:
-                    for each_result in result:
-                        outgoing_chunk.append(each_result)
-                        if len(outgoing_chunk) >= self._chunk_size:
-                            self._output.put(outgoing_chunk)
-                            outgoing_chunk = []
-                else:
-                    if result is None:
-                        # Valueless function, or no result whatsoever.
-                        pass
-                    outgoing_chunk.append(result)
-
-                if len(outgoing_chunk) >= self._chunk_size:
-                    self._output.put(outgoing_chunk)
-                    outgoing_chunk = []
-
-        if len(outgoing_chunk) > 0:
-            self._output.put(outgoing_chunk)
-
-        if self._teardown is not None:
-            self._teardown(persistent)
-
-        return
-
-    def instantiate(self, input, output):
-        self._input = input
-        self._output = output
-
-        num_copies = multiprocessing.cpu_count() if self._num is None else self._num
-
-        self._processes = [multiprocessing.Process(target=self._run_in_process) for x in range(num_copies)]
-        [x.start() for x in self._processes]
-
-    def join(self):
-        if len(self._processes) == 0:
-            return
-
-        quit_token = _Sentinel()
-
-        [self._input.put(quit_token) for x in self._processes]
-        [x.join() for x in self._processes]
-        return
-
-
-class Pipeline(object):
-    """Manages a multi-stage Extract, Transform, Load process."""
-
-    def __init__(self, max_size=-1):
-        self._max_size = max_size
-        self._tasks = []
-        self._origins = []
-        self._destinations = []
-        self._queues = []
-        self._actual_tasks = None
-
-    def _new_task(self, callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs):
-        if self._actual_tasks is not None:
-            raise SequenceError("You are trying to add a task to a pipeline that already started.")
-
-        return _QTask(callable, num, chunk_size, setup, teardown, **kwargs)
-
-    def add_task(self, callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs):
-        new_task = self._new_task(callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs)
-        self._tasks.append(new_task)
-
-    def add_origin(self, *args, **kwargs):
-        new_task = self._new_task(*args, **kwargs)
-        self._origins.append(new_task)
-
-    def add_destination(self, *args, **kwargs):
-        new_task = self._new_task(*args, **kwargs)
-        self._destinations.append(new_task)
+        # We only need messaging capabilities if we have named Pipelines; therefore we only check for (and start) the
+        # messaging center if the Pipeline's name is set.
+        if self._name:
+            if Pipeline._messaging is None:
+                Pipeline._messaging = MessagingCenter()
+                Pipeline._messaging.start()
 
     def start(self):
-        # Every task has an input and an output queue, of maximum max_size items
-        # The first queue is fed by "feed", of course.
-        if self._actual_tasks is not None:
-            raise SequenceError("You are trying to start a pipeline that already started.")
-
-        self._queues.append(multiprocessing.Queue(self._max_size))
-        self._actual_tasks = self._origins + self._tasks + self._destinations
-        for t in self._actual_tasks:
-            self._queues.append(multiprocessing.Queue(self._max_size))
-            t.instantiate(self._queues[-2], self._queues[-1])
-
-        return
-
-    def feed_chunk(self, chunk):
-        """Takes a chunk of items (i.e. a list of items) and feeds them to the pipeline."""
-        if self._actual_tasks is None:
-            raise SequenceError("You are feeding a pipeline that hasn't started.")
-
-        self._queues[0].put(chunk)
-
-    def feed(self, item):
-        """Feeds a single item to the pipeline."""
-        self.feed_chunk([item])
-
-    @property
-    def results_queue(self):
-        return self._queues[-1]
+        super().start()
+        # Register this Pipeline with the central MessagingCenter.
+        if self._name:
+            Pipeline._messaging.register_pipeline_queue(self._name, self._queues[0])
 
     def join(self):
-        """Signals the end of processing, then waits for the associated tasks to end. Once the tasks end,
-        puts an end-of processing _Sentinel marker in the outgoing queue."""
-        if self._actual_tasks is None:
-            raise SequenceError("You are joining a pipeline that hasn't started.")
+        super().join()
+        # Any pipeline, even a non-named one, may be feeding other pipelines; therefore, after joining,
+        # we'll make sure that the pipeline is flushed if there is one.
+        if Pipeline._messaging:
+            Pipeline._messaging.flush()
 
-        [x.join() for x in self._actual_tasks]
-        self.results_queue.put(_Sentinel())
+    @staticmethod
+    def send_multiple(dest, obj_list):
+        """Sends a list of picklable objects to another named pipeline."""
+        if Pipeline._messaging:
+            Pipeline._messaging.send_message(dest, obj_list)
+        else:
+            raise ValueError("There are no named pipelines.")
 
-    def as_completed(self):
-        while True:
-            result_chunk = self.results_queue.get()
-            if isinstance(result_chunk, _Sentinel):
-                break
+    @staticmethod
+    def send(dest, obj):
+        Pipeline.send_multiple(dest, [obj])
 
-            for result in result_chunk:
-                yield result
