@@ -5,6 +5,8 @@ import multiprocessing.connection
 import threading
 import collections
 import random
+import logging
+import traceback
 
 from mpetl import _Sentinel
 
@@ -26,28 +28,33 @@ class MessagingCenter(multiprocessing.Process):
             # MessagingCenter._queue_manager.start()
 
     def central_receiver(self):
-        while True:
-            msg = self._incoming.get()
-            print(msg)
-            if isinstance(msg, _Sentinel):
-                for pipeline in self._known_pipelines.values():
-                    pipeline.put(_sentinel_singleton)
-                break
+        try:
+            while True:
+                msg = self._incoming.get()
+                if isinstance(msg, _Sentinel):
+                    for pipeline in self._known_pipelines.values():
+                        pipeline.put(_sentinel_singleton)
+                    break
 
-            if isinstance(msg, registration_message):
-                self._known_pipelines[msg.name] = msg.queue
-            elif isinstance(msg, pipeline_message):
-                self._known_pipelines[msg.destination].put(msg.data)
-            elif isinstance(msg, goodbye_message):
-                print("Known:", self._known_pipelines)
-                self._known_pipelines[msg.name].put(_sentinel_singleton)
-                del self._known_pipelines[msg.name]
+                if isinstance(msg, registration_message):
+                    self._known_pipelines[msg.name] = msg.queue
+                elif isinstance(msg, pipeline_message):
+                    if self._known_pipelines[msg.destination] is not None:
+                        self._known_pipelines[msg.destination].put(msg.data)
+                    else:
+                        logging.warning("Received message %r for a closed pipeline.", msg)
+                elif isinstance(msg, goodbye_message):
+                    if self._known_pipelines[msg.name] is not None:
+                        self._known_pipelines[msg.name].put(_sentinel_singleton)
+                        self._known_pipelines[msg.name] = None
+                    else:
+                        logging.warning("Attempted to close a closed pipeline (%r).", msg.name)
+        except:
+            logging.error(traceback.format_exc())
 
     def register_pipeline(self, name):
         """Takes a pipeline name and returns a queue that should be listened to for messages."""
-        print("Requesting a Queue from the manager for", name)
         return_queue = self._queue_manager.Queue()
-        print("My new queue is", return_queue)
         self._incoming.put(registration_message(name, return_queue))
         return return_queue
 
@@ -57,7 +64,6 @@ class MessagingCenter(multiprocessing.Process):
             item = internal_queue.get()
             if isinstance(item, _Sentinel):
                 del internal_queue
-                print("Goodbye cruel world")
                 return
             queue.put(item)
 
@@ -67,9 +73,7 @@ class MessagingCenter(multiprocessing.Process):
     def register_pipeline_queue(self, name, queue):
         """Starts a background daemonic thread that receives messages and places them in the designated queue."""
         # Register with the central repository and receive a port number
-        print("Registering", name)
         internal_queue = self.register_pipeline(name)
-        print("Starting listener")
         new_listener = threading.Thread(target=self.receive_message_in_process,
                                         args=(internal_queue, queue),
                                         daemon=True)
