@@ -1,5 +1,6 @@
 import inspect
 import multiprocessing
+import weakref
 from .util import SENTINEL
 
 __author__ = 'Jorge R. Herskovic <jherskovic@mdanderson.org>'
@@ -99,6 +100,7 @@ class _Pipeline(object):
         self._destinations = []
         self._queues = []
         self._actual_tasks = None
+        self._finalize = weakref.finalize(self, _Pipeline._cleanup, self._queues)
 
     def _new_task(self, callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs):
         if self._actual_tasks is not None:
@@ -165,8 +167,9 @@ class _Pipeline(object):
             for result in result_chunk:
                 yield result
 
-    def __del__(self):
+    @staticmethod
+    def _cleanup(queues):
         # Clean up the remaining queues.
-        for q in self._queues:
-            if q:
+        for q in queues:
+            if q is not None:
                 q.close()
