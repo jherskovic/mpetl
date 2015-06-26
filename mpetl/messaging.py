@@ -3,16 +3,14 @@ __author__ = 'Jorge R. Herskovic <jherskovic@gmail.com>'
 import multiprocessing
 import threading
 import collections
-import random
 import logging
 import traceback
-
-from mpetl.pipeline import _Sentinel
+from .util import sentinel_singleton, _random_string
 
 pipeline_message = collections.namedtuple("pipeline_message", ["destination", "data"])
 registration_message = collections.namedtuple("registration_message", ["name", "queue"])
 goodbye_message = collections.namedtuple("goodbye_message", ["name"])
-_sentinel_singleton = _Sentinel()
+
 
 class MessagingCenter(multiprocessing.Process):
     _queue_manager = None
@@ -30,9 +28,9 @@ class MessagingCenter(multiprocessing.Process):
         try:
             while True:
                 msg = self._incoming.get()
-                if isinstance(msg, _Sentinel):
+                if msg == sentinel_singleton:
                     for pipeline in self._known_pipelines.values():
-                        pipeline.put(_sentinel_singleton)
+                        pipeline.put(sentinel_singleton)
                     break
 
                 if isinstance(msg, registration_message):
@@ -44,7 +42,7 @@ class MessagingCenter(multiprocessing.Process):
                         logging.warning("Received message %r for a closed pipeline.", msg)
                 elif isinstance(msg, goodbye_message):
                     if self._known_pipelines[msg.name] is not None:
-                        self._known_pipelines[msg.name].put(_sentinel_singleton)
+                        self._known_pipelines[msg.name].put(sentinel_singleton)
                         self._known_pipelines[msg.name] = None
                     else:
                         logging.warning("Attempted to close a closed pipeline (%r).", msg.name)
@@ -59,11 +57,14 @@ class MessagingCenter(multiprocessing.Process):
 
     @staticmethod
     def receive_message_in_process(internal_queue, queue):
-        while True:
-            item = internal_queue.get()
-            if isinstance(item, _Sentinel):
-                return
-            queue.put(item)
+        try:
+            while True:
+                item = internal_queue.get()
+                if item == sentinel_singleton:
+                    return
+                queue.put(item)
+        except EOFError:
+            return
 
     def send_message(self, name, data):
         self._incoming.put(pipeline_message(name, data))
@@ -87,7 +88,7 @@ class MessagingCenter(multiprocessing.Process):
     def flush(self):
         """Ensures that all messages up to this point have been processed by the pipeline by sending, and recognizing,
         one specific message."""
-        queue_name = '__*($#^%' + ''.join(random.choice('abcdefghijklmnopqrstuvwxyz') for i in range(50))
+        queue_name = '__*($#^%' + _random_string()
         temp_queue = multiprocessing.Queue()
         self.register_pipeline_queue(queue_name, temp_queue)
         self.send_message(queue_name, 0)
@@ -95,3 +96,8 @@ class MessagingCenter(multiprocessing.Process):
         temp_queue.close()
         self.close_pipeline_queue(queue_name)
 
+    def __del__(self):
+        if self._known_pipelines:
+            for p in self._known_pipelines.values():
+                if p:
+                    p.put(sentinel_singleton)

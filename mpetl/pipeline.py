@@ -1,14 +1,11 @@
 import inspect
 import multiprocessing
+from .util import sentinel_singleton
 
 __author__ = 'Jorge R. Herskovic <jherskovic@mdanderson.org>'
 
 
 class SequenceError(Exception):
-    pass
-
-
-class _Sentinel(object):
     pass
 
 
@@ -35,7 +32,7 @@ class _QTask(object):
 
         while True:
             chunk = self._input.get()
-            if isinstance(chunk, _Sentinel):
+            if chunk == sentinel_singleton:
                 break
 
             for item in chunk:
@@ -87,9 +84,7 @@ class _QTask(object):
         if len(self._processes) == 0:
             return
 
-        quit_token = _Sentinel()
-
-        [self._input.put(quit_token) for x in self._processes]
+        [self._input.put(sentinel_singleton) for x in self._processes]
         [x.join() for x in self._processes]
         return
 
@@ -154,20 +149,24 @@ class _Pipeline(object):
 
     def join(self):
         """Signals the end of processing, then waits for the associated tasks to end. Once the tasks end,
-        puts an end-of processing _Sentinel marker in the outgoing queue."""
+        puts an end-of processing Sentinel marker in the outgoing queue."""
         if self._actual_tasks is None:
             raise SequenceError("You are joining a pipeline that hasn't started.")
 
         [x.join() for x in self._actual_tasks]
-        self.results_queue.put(_Sentinel())
+        self.results_queue.put(sentinel_singleton)
 
     def as_completed(self):
         while True:
             result_chunk = self.results_queue.get()
-            if isinstance(result_chunk, _Sentinel):
+            if result_chunk == sentinel_singleton:
                 break
 
             for result in result_chunk:
                 yield result
 
-
+    def __del__(self):
+        # Clean up the remaining queues.
+        for q in self._queues:
+            if q:
+                q.close()
