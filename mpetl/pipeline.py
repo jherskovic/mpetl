@@ -1,6 +1,6 @@
 import inspect
 import multiprocessing
-from .util import sentinel_singleton
+from .util import SENTINEL
 
 __author__ = 'Jorge R. Herskovic <jherskovic@mdanderson.org>'
 
@@ -32,7 +32,7 @@ class _QTask(object):
 
         while True:
             chunk = self._input.get()
-            if chunk == sentinel_singleton:
+            if chunk == SENTINEL:
                 break
 
             for item in chunk:
@@ -84,7 +84,7 @@ class _QTask(object):
         if len(self._processes) == 0:
             return
 
-        [self._input.put(sentinel_singleton) for x in self._processes]
+        [self._input.put(SENTINEL) for x in self._processes]
         [x.join() for x in self._processes]
         return
 
@@ -106,8 +106,8 @@ class _Pipeline(object):
 
         return _QTask(callable, num, chunk_size, setup, teardown, **kwargs)
 
-    def add_task(self, callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs):
-        new_task = self._new_task(callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs)
+    def add_task(self, callable, num=1, chunk_size=1, setup=None, teardown=None, **kwargs):
+        new_task = self._new_task(callable, num=num, chunk_size=chunk_size, setup=setup, teardown=teardown, **kwargs)
         self._tasks.append(new_task)
 
     def add_origin(self, *args, **kwargs):
@@ -154,12 +154,12 @@ class _Pipeline(object):
             raise SequenceError("You are joining a pipeline that hasn't started.")
 
         [x.join() for x in self._actual_tasks]
-        self.results_queue.put(sentinel_singleton)
+        self.results_queue.put(SENTINEL)
 
     def as_completed(self):
         while True:
             result_chunk = self.results_queue.get()
-            if result_chunk == sentinel_singleton:
+            if result_chunk == SENTINEL:
                 break
 
             for result in result_chunk:
