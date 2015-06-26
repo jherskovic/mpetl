@@ -106,8 +106,8 @@ class _Pipeline(object):
 
         return _QTask(callable, num, chunk_size, setup, teardown, **kwargs)
 
-    def add_task(self, callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs):
-        new_task = self._new_task(callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs)
+    def add_task(self, callable, num=1, chunk_size=1, setup=None, teardown=None, **kwargs):
+        new_task = self._new_task(callable, num=num, chunk_size=chunk_size, setup=setup, teardown=teardown, **kwargs)
         self._tasks.append(new_task)
 
     def add_origin(self, *args, **kwargs):
