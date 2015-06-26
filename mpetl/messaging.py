@@ -6,7 +6,6 @@ import collections
 import logging
 import traceback
 import weakref
-from queue import Empty
 from .util import SENTINEL, _random_string
 
 pipeline_message = collections.namedtuple("pipeline_message", ["destination", "data"])
@@ -37,10 +36,7 @@ class MessagingCenter(multiprocessing.Process):
     def central_receiver(self):
         try:
             while True:
-                try:
-                    msg = self._incoming.get(timeout=1.0)
-                except Empty:
-                    continue
+                msg = self._incoming.get()
                 if msg == SENTINEL:
                     self._close_outgoing()
                     break
@@ -74,16 +70,13 @@ class MessagingCenter(multiprocessing.Process):
     def receive_message_in_process(internal_queue, queue):
         try:
             while True:
-                try:
-                    item = internal_queue.get(timeout=1.0)
-                except Empty:
-                    continue
+                item = internal_queue.get()
                 if item == SENTINEL:
                     break
                 if queue() is not None:
                     queue().put(item)
         except EOFError:
-            pass
+            return
 
     def send_message(self, name, data):
         self._incoming.put(pipeline_message(name, data))
