@@ -6,6 +6,7 @@ import collections
 import logging
 import traceback
 import weakref
+from queue import Empty
 from .util import SENTINEL, _random_string
 
 pipeline_message = collections.namedtuple("pipeline_message", ["destination", "data"])
@@ -15,6 +16,7 @@ goodbye_message = collections.namedtuple("goodbye_message", ["name"])
 
 class MessagingCenter(multiprocessing.Process):
     _queue_manager = None
+    _queue_manager_lock = None
 
     def __init__(self):
         multiprocessing.Process.__init__(self)
@@ -23,16 +25,24 @@ class MessagingCenter(multiprocessing.Process):
         self.daemon = True
         if MessagingCenter._queue_manager is None:
             MessagingCenter._queue_manager = multiprocessing.Manager()
+            MessagingCenter._queue_manager_lock = multiprocessing.Lock()
             # MessagingCenter._queue_manager.start()
         self._finalizer = weakref.finalize(self, MessagingCenter._cleanup, self._known_pipelines)
+
+    def _close_outgoing(self):
+        for pipeline in self._known_pipelines.values():
+            if pipeline is not None:
+                pipeline.put(SENTINEL)
 
     def central_receiver(self):
         try:
             while True:
-                msg = self._incoming.get()
+                try:
+                    msg = self._incoming.get(timeout=1.0)
+                except Empty:
+                    continue
                 if msg == SENTINEL:
-                    for pipeline in self._known_pipelines.values():
-                        pipeline.put(SENTINEL)
+                    self._close_outgoing()
                     break
 
                 if isinstance(msg, registration_message):
@@ -48,12 +58,15 @@ class MessagingCenter(multiprocessing.Process):
                         self._known_pipelines[msg.name] = None
                     else:
                         logging.warning("Attempted to close a closed pipeline (%r).", msg.name)
+        except EOFError:
+            self._close_outgoing()
         except:
             logging.error(traceback.format_exc())
 
     def register_pipeline(self, name):
         """Takes a pipeline name and returns a queue that should be listened to for messages."""
-        return_queue = self._queue_manager.Queue()
+        with MessagingCenter._queue_manager_lock:
+            return_queue = self._queue_manager.Queue()
         self._incoming.put(registration_message(name, return_queue))
         return return_queue
 
@@ -61,13 +74,16 @@ class MessagingCenter(multiprocessing.Process):
     def receive_message_in_process(internal_queue, queue):
         try:
             while True:
-                item = internal_queue.get()
+                try:
+                    item = internal_queue.get(timeout=1.0)
+                except Empty:
+                    continue
                 if item == SENTINEL:
-                    return
+                    break
                 if queue() is not None:
                     queue().put(item)
         except EOFError:
-            return
+            pass
 
     def send_message(self, name, data):
         self._incoming.put(pipeline_message(name, data))
@@ -105,3 +121,4 @@ class MessagingCenter(multiprocessing.Process):
             for p in pipelines.values():
                 if p is not None:
                     p.put(SENTINEL)
+

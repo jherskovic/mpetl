@@ -97,8 +97,8 @@ class TestPipeline(unittest.TestCase):
     def build_nondivisible_pipeline(self):
         self.nondivisible = Pipeline("nondivisible")
         self.nondivisible.add_origin(nondivisible_pipeline_start, num=1)
-        self.nondivisible.add_task(nondivisible_pipeline_task)
-        self.nondivisible.add_destination(nondivisible_pipeline_destination)
+        self.nondivisible.add_task(nondivisible_pipeline_task, num=2)
+        self.nondivisible.add_destination(nondivisible_pipeline_destination, num=2)
 
     def test_nondivisible_pipeline(self):
         q = multiprocessing.Queue()
@@ -128,6 +128,26 @@ class TestPipeline(unittest.TestCase):
         self.final.join()
         value = [x for x in self.final.as_completed()]
         self.assertGreaterEqual(value[0], 170)
+
+    def test_assemble_contraption(self):
+        self.build_first_pipeline()
+        self.build_divisible_pipeline()
+        self.build_nondivisible_pipeline()
+        self.build_final_pipeline()
+
+        self.first.start()
+        self.divisible.start()
+        self.nondivisible.start()
+        self.final.start()
+
+        self.first.feed(100)
+        self.first.join()
+        self.divisible.join()
+        self.nondivisible.join()
+        self.final.join()
+
+        result = [x for x in self.final.as_completed()]
+        self.assertGreater(len(result), 0)
 
 if __name__ == '__main__':
     unittest.main()

@@ -12,6 +12,7 @@ class SequenceError(Exception):
 
 class _QTask(object):
     """Describes one task in a _Pipeline."""
+
     def __init__(self, callable, num, chunk_size, setup, teardown, **kwargs):
         self._callable = callable
         self._num = multiprocessing.cpu_count() if num is None or num < 1 else num
@@ -32,7 +33,12 @@ class _QTask(object):
         outgoing_chunk = []
 
         while True:
-            chunk = self._input.get()
+            if self._input() is not None:
+                chunk = self._input().get()
+            else:
+                # Broken pipe - abort
+                break
+
             if chunk == SENTINEL:
                 break
 
@@ -52,7 +58,8 @@ class _QTask(object):
                     for each_result in result:
                         outgoing_chunk.append(each_result)
                         if len(outgoing_chunk) >= self._chunk_size:
-                            self._output.put(outgoing_chunk)
+                            if self._output() is not None:
+                                self._output().put(outgoing_chunk)
                             outgoing_chunk = []
                 else:
                     if result is None:
@@ -61,11 +68,13 @@ class _QTask(object):
                     outgoing_chunk.append(result)
 
                 if len(outgoing_chunk) >= self._chunk_size:
-                    self._output.put(outgoing_chunk)
+                    if self._output() is not None:
+                        self._output().put(outgoing_chunk)
                     outgoing_chunk = []
 
         if len(outgoing_chunk) > 0:
-            self._output.put(outgoing_chunk)
+            if self._output() is not None:
+                self._output().put(outgoing_chunk)
 
         if self._teardown is not None:
             self._teardown(persistent)
@@ -73,8 +82,8 @@ class _QTask(object):
         return
 
     def instantiate(self, input, output):
-        self._input = input
-        self._output = output
+        self._input = weakref.ref(input)
+        self._output = weakref.ref(output)
 
         num_copies = multiprocessing.cpu_count() if self._num is None else self._num
 
@@ -85,7 +94,8 @@ class _QTask(object):
         if len(self._processes) == 0:
             return
 
-        [self._input.put(SENTINEL) for x in self._processes]
+        if self._input() is not None:
+            [self._input().put(SENTINEL) for x in self._processes]
         [x.join() for x in self._processes]
         return
 
@@ -100,7 +110,7 @@ class _Pipeline(object):
         self._destinations = []
         self._queues = []
         self._actual_tasks = None
-        self._finalize = weakref.finalize(self, _Pipeline._cleanup, self._queues)
+        self._finalize = weakref.finalize(self, self._cleanup)
 
     def _new_task(self, callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs):
         if self._actual_tasks is not None:
@@ -149,6 +159,10 @@ class _Pipeline(object):
     def results_queue(self):
         return self._queues[-1]
 
+    @property
+    def input_queue(self):
+        return self._queues[0]
+
     def join(self):
         """Signals the end of processing, then waits for the associated tasks to end. Once the tasks end,
         puts an end-of processing Sentinel marker in the outgoing queue."""
@@ -167,9 +181,8 @@ class _Pipeline(object):
             for result in result_chunk:
                 yield result
 
-    @staticmethod
-    def _cleanup(queues):
+    def _cleanup(self):
         # Clean up the remaining queues.
-        for q in queues:
+        for q in self._queues:
             if q is not None:
                 q.close()

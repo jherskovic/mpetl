@@ -45,3 +45,4 @@ class Pipeline(_Pipeline):
     def send(dest, obj):
         Pipeline.send_multiple(dest, [obj])
 
+
