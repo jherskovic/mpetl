@@ -52,7 +52,7 @@ def destination_function(one_line):
 
 
 if __name__ == "__main__":
-   pipeline = mpetl._Pipeline()
+   pipeline = mpetl.Pipeline()
    pipeline.add_origin(origin_function)
    pipeline.add_task(process_line)
    pipeline.add_destination(destination_function)
