@@ -1,4 +1,5 @@
-__author__ = 'jrherskovic'
+from __future__ import absolute_import
+__author__ = u'jrherskovic'
 
 import unittest
 import multiprocessing
@@ -20,19 +21,19 @@ def setup_process():
     EXTERNAL_STORE={}
     return EXTERNAL_STORE
 
-num_hellos=multiprocessing.Value('i', 0)
+num_hellos=multiprocessing.Value(u'i', 0)
 
 def teardown_process(external):
     global num_hellos
     # If running on more than one CPU, we may not have 'sekrit' in all of them
     # But we should have exactly ONE sekrit, no matter the number of CPUs
-    if 'sekrit' in external:
-        assert external['sekrit'] == 'Hello'
+    if u'sekrit' in external:
+        assert external[u'sekrit'] == u'Hello'
         num_hellos.value = num_hellos.value + 1
 
 
 def do_something_external(parameter, process_persistent):
-    process_persistent['sekrit'] = parameter
+    process_persistent[u'sekrit'] = parameter
     return parameter
 
 
@@ -46,17 +47,17 @@ class test_qtask(unittest.TestCase):
         self.assertIsInstance(self.qtask, _QTask)
 
     def test_creation_kwarg(self):
-        kwarg_qtask = _QTask(kwarg_task, None, None, None, None, another_parameter='Foo')
+        kwarg_qtask = _QTask(kwarg_task, None, None, None, None, another_parameter=u'Foo')
         self.assertIsInstance(kwarg_qtask, _QTask)
 
     def test_kwarg_receives_argument(self):
-        kwarg_qtask = _QTask(kwarg_task, None, None, None, None, another_parameter='Foo')
+        kwarg_qtask = _QTask(kwarg_task, None, None, None, None, another_parameter=u'Foo')
         self.input_q = multiprocessing.Queue()
         self.output_q = multiprocessing.Queue()
         kwarg_qtask.instantiate(self.input_q, self.output_q)
-        self.input_q.put(['Bar'])
+        self.input_q.put([u'Bar'])
         kwarg_qtask.join()
-        self.assertEqual([('Bar', 'Foo')], self.output_q.get())
+        self.assertEqual([(u'Bar', u'Foo')], self.output_q.get())
 
     def create_and_instantiate(self, num=1, chunk_size=1):
         self.test_creation_with_callable(num, chunk_size)
@@ -78,10 +79,10 @@ class test_qtask(unittest.TestCase):
 
     def test_process_one_thing(self, num=1, chunk_size=1):
         self.create_and_instantiate(num, chunk_size)
-        self.input_q.put(["Hello",])
+        self.input_q.put([u"Hello",])
         self.qtask.join()
         # Remember that internally we pass lists
-        self.assertEqual(self.output_q.get(), ["Hello"])
+        self.assertEqual(self.output_q.get(), [u"Hello"])
 
     def test_process_one_thing_with_four_processes(self):
         self.test_process_one_thing(4)
@@ -94,22 +95,22 @@ class test_qtask(unittest.TestCase):
 
     def test_process_one_thousand_things(self, num=1, chunk_size=1):
         self.create_and_instantiate(num, chunk_size)
-        [self.input_q.put([x]) for x in range(1000)]
+        [self.input_q.put([x]) for x in xrange(1000)]
         self.qtask.join()
 
         # There's no guarantee that the results are in order, and we get chunks, so...
         result = []
         while True:
             result += self.output_q.get()
-            if set(result) == set(x for x in range(1000)):
+            if set(result) == set(x for x in xrange(1000)):
                 break
 
     def test_originally_chunked_things(self, num=1, chunk_size=1):
         self.create_and_instantiate(num, chunk_size)
         counter = 0
-        for i in range(100):
+        for i in xrange(100):
             data = []
-            for j in range(7):
+            for j in xrange(7):
                 data.append(counter)
                 counter += 1
             self.input_q.put(data)
@@ -118,7 +119,7 @@ class test_qtask(unittest.TestCase):
         result = []
         while True:
             result += self.output_q.get()
-            if set(result) == set(x for x in range(700)):
+            if set(result) == set(x for x in xrange(700)):
                 break
 
     def test_process_1000_things_7_processes(self):
@@ -140,13 +141,13 @@ class test_qtask(unittest.TestCase):
         self.input_q = multiprocessing.Queue()
         self.output_q = multiprocessing.Queue()
         self.qtask.instantiate(self.input_q, self.output_q)
-        self.input_q.put(["Hello",])
-        self.assertEqual(self.output_q.get(), ["Hello"])
+        self.input_q.put([u"Hello",])
+        self.assertEqual(self.output_q.get(), [u"Hello"])
         # Processing should have finished, and the EXTERNAL STORE should therefore contain "Hello" in "sekrit"...
         # but in the other process, so we can't test it here. The teardown process DOES test it, though.
         self.qtask.join()
         # The teardown should have executed and we should have seen a total of one hello
         self.assertEqual(num_hellos.value, 1)
 
-if __name__ == '__main__':
+if __name__ == u'__main__':
     unittest.main()

@@ -1,4 +1,5 @@
-__author__ = 'Jorge Herskovic <jherskovic@gmail.com>'
+from __future__ import absolute_import
+__author__ = u'Jorge Herskovic <jherskovic@gmail.com>'
 
 from .pipeline import _Pipeline
 from .messaging import MessagingCenter
@@ -10,7 +11,7 @@ class Pipeline(_Pipeline):
     _messaging = None
 
     def __init__(self, name=None, max_size=-1):
-        super().__init__(max_size)
+        super(Pipeline, self).__init__(max_size)
         self._name = name
 
         # We only need messaging capabilities if we have named Pipelines; therefore we only check for (and start) the
@@ -21,13 +22,13 @@ class Pipeline(_Pipeline):
                 Pipeline._messaging.start()
 
     def start(self):
-        super().start()
+        super(Pipeline, self).start()
         # Register this Pipeline with the central MessagingCenter.
         if self._name:
             Pipeline._messaging.register_pipeline_queue(self._name, self._queues[0])
 
     def join(self):
-        super().join()
+        super(Pipeline, self).join()
         # Any pipeline, even a non-named one, may be feeding other pipelines; therefore, after joining,
         # we'll make sure that the pipeline is flushed if there is one.
         if Pipeline._messaging:
@@ -35,11 +36,11 @@ class Pipeline(_Pipeline):
 
     @staticmethod
     def send_multiple(dest, obj_list):
-        """Sends a list of picklable objects to another named pipeline."""
+        u"""Sends a list of picklable objects to another named pipeline."""
         if Pipeline._messaging:
             Pipeline._messaging.send_message(dest, obj_list)
         else:
-            raise ValueError("There are no named pipelines.")
+            raise ValueError(u"There are no named pipelines.")
 
     @staticmethod
     def send(dest, obj):

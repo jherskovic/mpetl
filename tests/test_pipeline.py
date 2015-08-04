@@ -1,4 +1,6 @@
-__author__ = 'jrherskovic'
+from __future__ import division
+from __future__ import absolute_import
+__author__ = u'jrherskovic'
 
 import unittest
 import multiprocessing
@@ -11,33 +13,33 @@ from mpetl import Pipeline
 
 
 def first_pipeline_origin(number):
-    for i in range(number):
+    for i in xrange(number):
         yield i
 
 def first_pipeline_destination(number):
     if number % 3 == 0:
-        Pipeline.send("divisible", number)
+        Pipeline.send(u"divisible", number)
     else:
-        Pipeline.send("nondivisible", number)
+        Pipeline.send(u"nondivisible", number)
 
 
 def divisible_pipeline_start(number):
-    for i in range(number // 3):
+    for i in xrange(number // 3):
         yield i
 
 def divisible_pipeline_dest(number):
-    Pipeline.send("final", number * 7)
+    Pipeline.send(u"final", number * 7)
 
 
 def nondivisible_pipeline_start(number):
-    for i in range(number):
+    for i in xrange(number):
         yield i
 
 def nondivisible_pipeline_task(number):
     return number / 2
 
 def nondivisible_pipeline_destination(number):
-    Pipeline.send("final", number * 3)
+    Pipeline.send(u"final", number * 3)
 
 
 def final_pipeline_start(number, accumulator=[0], counter=[0]):
@@ -60,7 +62,7 @@ def final_pipeline_reduce(number, accumulator=[0], counter=[0]):
 
 class TestPipeline(unittest.TestCase):
     def build_first_pipeline(self):
-        self.first = Pipeline("first one")
+        self.first = Pipeline(u"first one")
         self.first.add_origin(first_pipeline_origin)
         self.first.add_destination(first_pipeline_destination)
 
@@ -69,33 +71,33 @@ class TestPipeline(unittest.TestCase):
         # ensure the pipeline is started.
         # trick the pipeline into sending all results to a single queue by registering it manually
         q = multiprocessing.Queue()
-        Pipeline._messaging.register_pipeline_queue("divisible", q)
-        Pipeline._messaging.register_pipeline_queue("nondivisible", q)
+        Pipeline._messaging.register_pipeline_queue(u"divisible", q)
+        Pipeline._messaging.register_pipeline_queue(u"nondivisible", q)
         self.first.start()
         self.first.feed(6)
         # We should get back the set (0, 1, 2, 3, 4, 5)
         self.first.join()
-        self.assertEqual(set(q.get()[0] for x in range(6)), set(x for x in range(6)))
+        self.assertEqual(set(q.get()[0] for x in xrange(6)), set(x for x in xrange(6)))
         q.close()
 
     def build_divisible_pipeline(self):
-        self.divisible = Pipeline("divisible")
+        self.divisible = Pipeline(u"divisible")
         self.divisible.add_origin(divisible_pipeline_start)
         self.divisible.add_destination(divisible_pipeline_dest)
 
     def test_divisible_pipeline(self):
         q = multiprocessing.Queue()
         self.build_divisible_pipeline()
-        Pipeline._messaging.register_pipeline_queue("final", q)
+        Pipeline._messaging.register_pipeline_queue(u"final", q)
         self.divisible.start()
         self.divisible.feed(6)
         self.divisible.join()
         # We should get two numbers, 0 * 7 and 1 * 7
-        self.assertEqual(set(q.get()[0] for x in range(2)), set([0, 7]))
+        self.assertEqual(set(q.get()[0] for x in xrange(2)), set([0, 7]))
         q.close()
 
     def build_nondivisible_pipeline(self):
-        self.nondivisible = Pipeline("nondivisible")
+        self.nondivisible = Pipeline(u"nondivisible")
         self.nondivisible.add_origin(nondivisible_pipeline_start, num=1)
         self.nondivisible.add_task(nondivisible_pipeline_task, num=2)
         self.nondivisible.add_destination(nondivisible_pipeline_destination, num=2)
@@ -103,24 +105,24 @@ class TestPipeline(unittest.TestCase):
     def test_nondivisible_pipeline(self):
         q = multiprocessing.Queue()
         self.build_nondivisible_pipeline()
-        Pipeline._messaging.register_pipeline_queue("final", q)
+        Pipeline._messaging.register_pipeline_queue(u"final", q)
         self.nondivisible.start()
         self.nondivisible.feed(6)
         self.nondivisible.join()
         # We should get six numbers, 0, 1, 2, 3, 4, 5, each / 2 and * 3
-        self.assertEqual(set(q.get()[0] for x in range(6)), set(x / 2 * 3 for x in range(6)))
+        self.assertEqual(set(q.get()[0] for x in xrange(6)), set(x / 2 * 3 for x in xrange(6)))
         q.close()
 
     def build_final_pipeline(self):
-        self.final = Pipeline("final")
+        self.final = Pipeline(u"final")
         self.final.add_origin(final_pipeline_start)
         self.final.add_destination(final_pipeline_reduce, num=1)
 
     def test_final_pipeline(self):
         self.build_final_pipeline()
         self.final.start()
-        for i in range(17):
-            for j in range(20):
+        for i in xrange(17):
+            for j in xrange(20):
                 self.final.feed(j)
 
         # We will get a single number; as to its value, it will depend on the exact way the calls get distributed, so
@@ -149,5 +151,5 @@ class TestPipeline(unittest.TestCase):
         result = [x for x in self.final.as_completed()]
         self.assertGreater(len(result), 0)
 
-if __name__ == '__main__':
+if __name__ == u'__main__':
     unittest.main()

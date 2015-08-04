@@ -1,4 +1,5 @@
-__author__ = 'Jorge Herskovic <jherskovic@gmail.com>'
+from __future__ import absolute_import
+__author__ = u'Jorge Herskovic <jherskovic@gmail.com>'
 
 import unittest
 from mpetl.pipeline import SequenceError, _Pipeline
@@ -15,7 +16,7 @@ def third_stage(parameter):
     return parameter * 5
 
 def iterator_origin(up_to):
-    for i in range(up_to):
+    for i in xrange(up_to):
         yield i
 
     return
@@ -54,7 +55,7 @@ class Test_Pipeline(unittest.TestCase):
         self.pipe.feed_chunk([100])
         self.pipe.join()
         result = set(x for x in self.pipe.as_completed())
-        expected = set((x + 1 - 3) * 5 for x in range(100))
+        expected = set((x + 1 - 3) * 5 for x in xrange(100))
         self.assertEqual(result, expected)
 
     def test_bad_sequence(self):
@@ -78,7 +79,7 @@ class Test_Pipeline(unittest.TestCase):
         self.pipe.feed_chunk([100])
         self.pipe.join()
         result = set(x for x in self.pipe.as_completed())
-        expected = set((x + 1 - 3) * 5 for x in range(100))
+        expected = set((x + 1 - 3) * 5 for x in xrange(100))
         self.assertEqual(result, expected)
 
     def test_very_parallel_pipeline(self, pipeline_depth=-1, pipeline_factory=_Pipeline, num_items=100):
@@ -92,7 +93,7 @@ class Test_Pipeline(unittest.TestCase):
         self.pipe.feed(num_items)
         self.pipe.join()
         result = set(x for x in self.pipe.as_completed())
-        expected = set((x + 1 - 3) * 5 for x in range(num_items))
+        expected = set((x + 1 - 3) * 5 for x in xrange(num_items))
         self.assertEqual(result, expected)
 
     def test_very_parallel_pipeline_longer(self):
@@ -105,5 +106,5 @@ class Test_Pipeline(unittest.TestCase):
     #     self.test_very_parallel_pipeline(num_items=1000, pipeline_depth=500)
 
 
-if __name__ == '__main__':
+if __name__ == u'__main__':
     unittest.main()

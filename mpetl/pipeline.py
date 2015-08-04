@@ -1,9 +1,10 @@
+from __future__ import absolute_import
 import inspect
 import multiprocessing
 import weakref
 from .util import SENTINEL
 
-__author__ = 'Jorge R. Herskovic <jherskovic@mdanderson.org>'
+__author__ = u'Jorge R. Herskovic <jherskovic@mdanderson.org>'
 
 
 class SequenceError(Exception):
@@ -11,7 +12,7 @@ class SequenceError(Exception):
 
 
 class _QTask(object):
-    """Describes one task in a _Pipeline."""
+    u"""Describes one task in a _Pipeline."""
 
     def __init__(self, callable, num, chunk_size, setup, teardown, **kwargs):
         self._callable = callable
@@ -87,7 +88,7 @@ class _QTask(object):
 
         num_copies = multiprocessing.cpu_count() if self._num is None else self._num
 
-        self._processes = [multiprocessing.Process(target=self._run_in_process) for x in range(num_copies)]
+        self._processes = [multiprocessing.Process(target=self._run_in_process) for x in xrange(num_copies)]
         [x.start() for x in self._processes]
 
     def join(self):
@@ -101,7 +102,7 @@ class _QTask(object):
 
 
 class _Pipeline(object):
-    """Manages a multi-stage Extract, Transform, Load process."""
+    u"""Manages a multi-stage Extract, Transform, Load process."""
 
     def __init__(self, max_size=-1):
         self._max_size = max_size
@@ -110,11 +111,12 @@ class _Pipeline(object):
         self._destinations = []
         self._queues = []
         self._actual_tasks = None
-        self._finalize = weakref.finalize(self, self._cleanup)
+        # weakref.finalize isn't available in Python2
+        # self._finalize = weakref.finalize(self, self._cleanup)
 
     def _new_task(self, callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs):
         if self._actual_tasks is not None:
-            raise SequenceError("You are trying to add a task to a pipeline that already started.")
+            raise SequenceError(u"You are trying to add a task to a pipeline that already started.")
 
         return _QTask(callable, num, chunk_size, setup, teardown, **kwargs)
 
@@ -134,7 +136,7 @@ class _Pipeline(object):
         # Every task has an input and an output queue, of maximum max_size items
         # The first queue is fed by "feed", of course.
         if self._actual_tasks is not None:
-            raise SequenceError("You are trying to start a pipeline that already started.")
+            raise SequenceError(u"You are trying to start a pipeline that already started.")
 
         self._queues.append(multiprocessing.Queue(self._max_size))
         self._actual_tasks = self._origins + self._tasks + self._destinations
@@ -145,14 +147,14 @@ class _Pipeline(object):
         return
 
     def feed_chunk(self, chunk):
-        """Takes a chunk of items (i.e. a list of items) and feeds them to the pipeline."""
+        u"""Takes a chunk of items (i.e. a list of items) and feeds them to the pipeline."""
         if self._actual_tasks is None:
-            raise SequenceError("You are feeding a pipeline that hasn't started.")
+            raise SequenceError(u"You are feeding a pipeline that hasn't started.")
 
         self._queues[0].put(chunk)
 
     def feed(self, item):
-        """Feeds a single item to the pipeline."""
+        u"""Feeds a single item to the pipeline."""
         self.feed_chunk([item])
 
     @property
@@ -164,10 +166,10 @@ class _Pipeline(object):
         return self._queues[0]
 
     def join(self):
-        """Signals the end of processing, then waits for the associated tasks to end. Once the tasks end,
+        u"""Signals the end of processing, then waits for the associated tasks to end. Once the tasks end,
         puts an end-of processing Sentinel marker in the outgoing queue."""
         if self._actual_tasks is None:
-            raise SequenceError("You are joining a pipeline that hasn't started.")
+            raise SequenceError(u"You are joining a pipeline that hasn't started.")
 
         [x.join() for x in self._actual_tasks]
         self.results_queue.put(SENTINEL)
@@ -181,7 +183,7 @@ class _Pipeline(object):
             for result in result_chunk:
                 yield result
 
-    def _cleanup(self):
+    def __del__(self):
         # Clean up the remaining queues.
         for q in self._queues:
             if q is not None:

@@ -1,24 +1,25 @@
 #!/usr/bin/env python
 
-__author__ = 'Jorge R. Herskovic <jherskovic@gmail.com>'
+from __future__ import absolute_import
+__author__ = u'Jorge R. Herskovic <jherskovic@gmail.com>'
 
 import unittest
 from mpetl.pipeline import _Pipeline
 from mpetl.messaging import *
 
 def generator(up_to):
-    for i in range(up_to):
+    for i in xrange(up_to):
         yield i
     return
 
 def conditional_routing(number, pipeline_msg):
-    """Routes even numbers to a pipeline called "even" and odd numbers to a pipeline called "odd"
+    u"""Routes even numbers to a pipeline called "even" and odd numbers to a pipeline called "odd"
     """
     #print("Got", number)
     if number % 2 == 0:
-        pipeline_msg.send_message("even", [number])
+        pipeline_msg.send_message(u"even", [number])
     else:
-        pipeline_msg.send_message("odd", [number])
+        pipeline_msg.send_message(u"odd", [number])
 
 
 def gathering_function(number):
@@ -45,8 +46,8 @@ class test_messaging(unittest.TestCase):
         self.original.add_destination(conditional_routing, pipeline_msg = self.messaging)
         self.original.start()
 
-        self.messaging.register_pipeline_queue("even", self.evens._queues[0])
-        self.messaging.register_pipeline_queue("odd", self.odds._queues[0])
+        self.messaging.register_pipeline_queue(u"even", self.evens._queues[0])
+        self.messaging.register_pipeline_queue(u"odd", self.odds._queues[0])
 
         self.original.feed(100)
 
@@ -58,8 +59,8 @@ class test_messaging(unittest.TestCase):
         evens = [x for x in self.evens.as_completed()]
         odds = [x for x in self.odds.as_completed()]
 
-        self.messaging.close_pipeline_queue("odd")
-        self.messaging.close_pipeline_queue("even")
+        self.messaging.close_pipeline_queue(u"odd")
+        self.messaging.close_pipeline_queue(u"even")
 
-if __name__ == '__main__':
+if __name__ == u'__main__':
     unittest.main()
