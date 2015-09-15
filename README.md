@@ -1,6 +1,7 @@
 # MPETL
 
-An opinionated framework for big MultiProcessing Extract, Transform, Load jobs. Python 3 native.
+An opinionated framework for big MultiProcessing Extract, Transform, Load jobs. Python 3 native. There's a Python 2 
+backport available in a separate branch if you want it; it may lag behind the master branch.
 
 ©2015 Jorge Herskovic <first initial + last name @ gee mail dot com>
 
@@ -219,3 +220,7 @@ In this case, run
 $ ulimit -n 2048
 ```
 to increase the OS file handle limit before running the tests.
+
+## Windows
+This library might run on Windows, but due to the high process creation overhead in that OS, it will more "crawl" 
+than run. I don't recommend it. MPETL depends on cheap process creation to be worthwhile.   
