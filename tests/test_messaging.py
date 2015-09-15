@@ -46,8 +46,8 @@ class test_messaging(unittest.TestCase):
         self.original.add_destination(conditional_routing, pipeline_msg = self.messaging)
         self.original.start()
 
-        self.messaging.register_pipeline_queue(u"even", self.evens._queues[0])
-        self.messaging.register_pipeline_queue(u"odd", self.odds._queues[0])
+        self.messaging.register_pipeline_queue(u"even", self.evens.input_queue)
+        self.messaging.register_pipeline(u"odd", self.odds)
 
         self.original.feed(100)
 
@@ -59,8 +59,8 @@ class test_messaging(unittest.TestCase):
         evens = [x for x in self.evens.as_completed()]
         odds = [x for x in self.odds.as_completed()]
 
-        self.messaging.close_pipeline_queue(u"odd")
-        self.messaging.close_pipeline_queue(u"even")
+        self.messaging.forget_pipeline(u"odd")
+        self.messaging.forget_pipeline(u"even")
 
 if __name__ == u'__main__':
     unittest.main()

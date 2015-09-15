@@ -1,7 +1,10 @@
 from __future__ import absolute_import
 import inspect
 import multiprocessing
+import traceback
+import sys
 import weakref
+from threading import Thread
 from .util import SENTINEL
 
 __author__ = u'Jorge R. Herskovic <jherskovic@mdanderson.org>'
@@ -25,13 +28,15 @@ class _QTask(object):
         self._input = None
         self._output = None
 
-    def _run_in_process(self):
+    def _run_in_process(self, process_num=0):
         persistent = None
         if self._setup is not None:
             persistent = self._setup()
 
         is_generator = inspect.isgeneratorfunction(self._callable)
         outgoing_chunk = []
+
+        my_name = self._callable.__name__ + unicode(process_num)
 
         while True:
             if self._input() is not None:
@@ -44,16 +49,21 @@ class _QTask(object):
                 break
 
             for item in chunk:
-                if persistent is None:
-                    if isinstance(item, tuple):
-                        result = self._callable(*item, **self._kwargs)
+                try:
+                    if persistent is None:
+                        if isinstance(item, tuple):
+                            result = self._callable(*item, **self._kwargs)
+                        else:
+                            result = self._callable(item, **self._kwargs)
                     else:
-                        result = self._callable(item, **self._kwargs)
-                else:
-                    if isinstance(item, tuple):
-                        result = self._callable(*item, process_persistent=persistent, **self._kwargs)
-                    else:
-                        result = self._callable(item, process_persistent=persistent, **self._kwargs)
+                        if isinstance(item, tuple):
+                            result = self._callable(*item, process_persistent=persistent, **self._kwargs)
+                        else:
+                            result = self._callable(item, process_persistent=persistent, **self._kwargs)
+                except:
+                    print >>sys.stderr, u"Exception raised in process", my_name
+                    print >>sys.stderr, traceback.format_exc()
+                    raise
 
                 if is_generator:
                     for each_result in result:
@@ -88,7 +98,8 @@ class _QTask(object):
 
         num_copies = multiprocessing.cpu_count() if self._num is None else self._num
 
-        self._processes = [multiprocessing.Process(target=self._run_in_process) for x in xrange(num_copies)]
+        self._processes = [multiprocessing.Process(target=self._run_in_process,
+                                                   args=(x,)) for x in xrange(num_copies)]
         [x.start() for x in self._processes]
 
     def join(self):
@@ -111,8 +122,8 @@ class _Pipeline(object):
         self._destinations = []
         self._queues = []
         self._actual_tasks = None
-        # weakref.finalize isn't available in Python2
-        # self._finalize = weakref.finalize(self, self._cleanup)
+        #self._finalize = weakref.finalize(self, self._cleanup)
+        self._joined = False
 
     def _new_task(self, callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs):
         if self._actual_tasks is not None:
@@ -171,10 +182,22 @@ class _Pipeline(object):
         if self._actual_tasks is None:
             raise SequenceError(u"You are joining a pipeline that hasn't started.")
 
+        if self._joined:
+            return
+
+        self._joined = True
+
         [x.join() for x in self._actual_tasks]
         self.results_queue.put(SENTINEL)
 
+    def _background_join(self):
+        # Joins using a background thread, in order to enable the actual use of as_completed.
+        Thread(target=_Pipeline.join, args=(self,)).start()
+
     def as_completed(self):
+        if not self._joined:
+            self._background_join()
+
         while True:
             result_chunk = self.results_queue.get()
             if result_chunk == SENTINEL:

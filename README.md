@@ -1,6 +1,7 @@
 # MPETL
 
-An opinionated framework for big MultiProcessing Extract, Transform, Load jobs. Python 3 native.
+An opinionated framework for big MultiProcessing Extract, Transform, Load jobs. Python 3 native. There's a Python 2 
+backport available in a separate branch if you want it; it may lag behind the master branch.
 
 ©2015 Jorge Herskovic <first initial + last name @ gee mail dot com>
 
@@ -126,7 +127,7 @@ it should be used only for very large numbers of fast tasks.
 
 ### Database access
 Database access is expensive and creating connections over and over can chew a lot of overhead. mpetl will let you
-specify a callable that will be called one per process, and that can return a value that will be then passed to your
+specify a callable that will be called once per process, and that can return a value that will be then passed to your
 task function as the *process_persistent* parameter. Give the add_task/origin/destination declaration a *setup*
 parameter that is a callable which returns a single value. For obvious reasons, this callable should be self-contained.
 You can also specify a *teardown* which will receive the same object and can... well... tear it down.
@@ -160,8 +161,51 @@ Will result in the following actual pipeline:
 
 Don't say I didn't warn you. The idea is that you should write your pipelines in the order in which they execute.
 
+### Getting results back
+The easiest way to get your results back, if your last task/destination yields them, is to iterate through the 
+as_completed() iterator of the pipeline. You can choose to do this after processing is completed, by join()ing the 
+pipeline before calling as_completed(), or to do it "live," by calling as_completed() without joining.
+ 
+Please be aware that due to implementation limitations calling as_completed without join()ing will call join() for 
+you in a background thread. In turn, this means that you MUST have fed the pipeline all the data it will consume (the
+ reason for this is that there's no other way of knowing when all of the data is processed, and hence no other way of
+  stopping the iteration!). In short, this is only useful for very long-running final steps.
+  
+WEIRDNESS WILL HAPPEN IF YOU IGNORE THIS WARNING.
+
 ### Conditional routing, branching pipelines, etc.
-TBD
+You can send the output of a pipeline to another pipeline. Do do this, you MUST give
+the destination pipeline a unique name, which must be a hashable value. Please use a string. 
+ 
+```python
+
+from mpetl import Pipeline
+
+def send_directly_to_second(something):
+    Pipeline.send("some name", something)
+
+def uppercase_it(something):
+    yield something.upper()
+
+first=Pipeline()
+first.add_task(send_directly_to_second)
+
+second=Pipeline(name="some name")
+second.add_task(uppercase_it)
+
+first.start()
+second.start()
+
+first.feed("Hello world")
+
+first.join()
+second.join()
+
+# Should print "HELLO WORLD"
+for result in second.as_completed():
+    print(result)
+
+```
 
 ## Testing
 MPETL uses nose for its tests. Run `nosetests` in its root directory to execute all tests. The test suite, quite on 
@@ -176,3 +220,7 @@ In this case, run
 $ ulimit -n 2048
 ```
 to increase the OS file handle limit before running the tests.
+
+## Windows
+This library might run on Windows, but due to the high process creation overhead in that OS, it will more "crawl" 
+than run. I don't recommend it. MPETL depends on cheap process creation to be worthwhile.   

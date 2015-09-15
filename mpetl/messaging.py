@@ -28,8 +28,7 @@ class MessagingCenter(multiprocessing.Process):
             MessagingCenter._queue_manager = multiprocessing.Manager()
             MessagingCenter._queue_manager_lock = multiprocessing.Lock()
             # MessagingCenter._queue_manager.start()
-        # No weakref.finalize in Python2
-        # self._finalizer = weakref.finalize(self, MessagingCenter._cleanup, self._known_pipelines)
+        #self._finalizer = weakref.finalize(self, MessagingCenter._cleanup, self._known_pipelines)
 
     def _close_outgoing(self):
         for pipeline in self._known_pipelines.values():
@@ -62,7 +61,7 @@ class MessagingCenter(multiprocessing.Process):
         except:
             logging.error(traceback.format_exc())
 
-    def register_pipeline(self, name):
+    def create_incoming_queue(self, name):
         u"""Takes a pipeline name and returns a queue that should be listened to for messages."""
         with MessagingCenter._queue_manager_lock:
             return_queue = self._queue_manager.Queue()
@@ -87,14 +86,17 @@ class MessagingCenter(multiprocessing.Process):
     def register_pipeline_queue(self, name, queue):
         u"""Starts a background daemonic thread that receives messages and places them in the designated queue."""
         # Register with the central repository and receive a port number
-        internal_queue = self.register_pipeline(name)
+        internal_queue = self.create_incoming_queue(name)
         new_listener = threading.Thread(target=self.receive_message_in_process,
                                         args=(internal_queue, weakref.ref(queue)))
         new_listener.daemon = True
         new_listener.start()
         return
 
-    def close_pipeline_queue(self, name):
+    def register_pipeline(self, name, pipeline):
+        self.register_pipeline_queue(name, pipeline.input_queue)
+
+    def forget_pipeline(self, name):
         self._incoming.put(goodbye_message(name))
 
     def run(self):
@@ -109,11 +111,12 @@ class MessagingCenter(multiprocessing.Process):
         self.send_message(queue_name, 0)
         temp_queue.get()
         temp_queue.close()
-        self.close_pipeline_queue(queue_name)
+        self.forget_pipeline(queue_name)
 
     def __del__(self):
-        if self._known_pipelines is not None:
-            for p in self._known_pipelines.values():
+        pipelines = self._known_pipelines
+        if pipelines is not None:
+            for p in pipelines.values():
                 if p is not None:
                     p.put(SENTINEL)
 
