@@ -3,7 +3,7 @@ from distutils.core import setup
 
 setup(
     name=u'mpetl',
-    version=u'1.0',
+    version='1.1.1',
     packages=['mpetl'],
     url=u'https://github.com/jherskovic/mpetl',
     license=u'Apache',
