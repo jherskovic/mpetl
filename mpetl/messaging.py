@@ -59,7 +59,7 @@ class MessagingCenter(multiprocessing.Process):
         except:
             logging.error(traceback.format_exc())
 
-    def register_pipeline(self, name):
+    def create_incoming_queue(self, name):
         """Takes a pipeline name and returns a queue that should be listened to for messages."""
         with MessagingCenter._queue_manager_lock:
             return_queue = self._queue_manager.Queue()
@@ -78,20 +78,26 @@ class MessagingCenter(multiprocessing.Process):
         except EOFError:
             return
 
-    def send_message(self, name, data):
+    def _send_message(self, name, data):
         self._incoming.put(pipeline_message(name, data))
+
+    def send_message(self, name, data):
+        self._send_message(name, [data])
 
     def register_pipeline_queue(self, name, queue):
         """Starts a background daemonic thread that receives messages and places them in the designated queue."""
         # Register with the central repository and receive a port number
-        internal_queue = self.register_pipeline(name)
+        internal_queue = self.create_incoming_queue(name)
         new_listener = threading.Thread(target=self.receive_message_in_process,
                                         args=(internal_queue, weakref.ref(queue)),
                                         daemon=True)
         new_listener.start()
         return
 
-    def close_pipeline_queue(self, name):
+    def register_pipeline(self, name, pipeline):
+        self.register_pipeline_queue(name, pipeline.input_queue)
+
+    def forget_pipeline(self, name):
         self._incoming.put(goodbye_message(name))
 
     def run(self):
@@ -106,7 +112,7 @@ class MessagingCenter(multiprocessing.Process):
         self.send_message(queue_name, 0)
         temp_queue.get()
         temp_queue.close()
-        self.close_pipeline_queue(queue_name)
+        self.forget_pipeline(queue_name)
 
     @staticmethod
     def _cleanup(pipelines):

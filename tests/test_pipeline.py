@@ -149,5 +149,25 @@ class TestPipeline(unittest.TestCase):
         result = [x for x in self.final.as_completed()]
         self.assertGreater(len(result), 0)
 
+    def test_implicit_as_completed(self):
+        self.build_first_pipeline()
+        self.build_divisible_pipeline()
+        self.build_nondivisible_pipeline()
+        self.build_final_pipeline()
+
+        self.first.start()
+        self.divisible.start()
+        self.nondivisible.start()
+        self.final.start()
+
+        self.first.feed(100)
+        self.first.join()
+        self.divisible.join()
+        self.nondivisible.join()
+
+        result = [x for x in self.final.as_completed()]
+        self.assertGreater(len(result), 0)
+
+
 if __name__ == '__main__':
     unittest.main()

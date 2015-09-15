@@ -160,8 +160,59 @@ Will result in the following actual pipeline:
 
 Don't say I didn't warn you. The idea is that you should write your pipelines in the order in which they execute.
 
+### Getting results back
+The easiest way to get your results back, if your last task/destination yields them, is to iterate through the 
+as_completed() iterator of the pipeline. You can choose to do this after processing is completed, by join()ing the 
+pipeline before calling as_completed(), or to do it "live," by calling as_completed() without joining.
+ 
+Please be aware that due to implementation limitations calling as_completed without join()ing will call join() for 
+you in a background thread. In turn, this means that you MUST have fed the pipeline all the data it will consume (the
+ reason for this is that there's no other way of knowing when all of the data is processed, and hence no other way of
+  stopping the iteration!). In short, this is only useful for very long-running final steps.
+  
+WEIRDNESS WILL HAPPEN IF YOU IGNORE THIS WARNING.
+
 ### Conditional routing, branching pipelines, etc.
-TBD
+You can send the output of a pipeline to another pipeline. Do do this, you MUST first create and register
+the destination pipeline with a central pipeline catalog using a unique name. 
+ 
+You must also instantiate a MessagingCenter (i.e. the central catalog) before you can do any of this. 
+```python
+
+from mpetl.messaging import MessagingCenter
+
+mc=MessagingCenter()
+mc.start()
+
+def send_directly_to_second(something):
+    mc.send_message("second", something)
+
+def uppercase_it(something):
+    yield something.upper()
+
+first=Pipeline()
+first.add_task(send_directly_to_second)
+
+second=Pipeline()
+second.add_task(uppercase_it)
+
+mc.register_pipeline("second", second)
+
+first.start()
+second.start()
+
+first.feed("Hello world")
+
+first.join()
+second.join()
+
+# Should print "HELLO WORLD"
+for result in second.as_completed():
+    print(result)
+
+mc.forget_pipeline("second") # Cleanup
+
+```
 
 ## Testing
 MPETL uses nose for its tests. Run `nosetests` in its root directory to execute all tests. The test suite, quite on 
