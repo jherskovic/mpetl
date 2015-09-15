@@ -173,19 +173,16 @@ you in a background thread. In turn, this means that you MUST have fed the pipel
 WEIRDNESS WILL HAPPEN IF YOU IGNORE THIS WARNING.
 
 ### Conditional routing, branching pipelines, etc.
-You can send the output of a pipeline to another pipeline. Do do this, you MUST first create and register
-the destination pipeline with a central pipeline catalog using a unique name. 
+You can send the output of a pipeline to another pipeline. Do do this, you MUST give
+the destination pipeline a unique name. 
  
 You must also instantiate a MessagingCenter (i.e. the central catalog) before you can do any of this. 
 ```python
 
-from mpetl.messaging import MessagingCenter
-
-mc=MessagingCenter()
-mc.start()
+from mpetl import Pipeline
 
 def send_directly_to_second(something):
-    mc.send_message("second", something)
+    Pipeline.send("some name", something)
 
 def uppercase_it(something):
     yield something.upper()
@@ -193,10 +190,8 @@ def uppercase_it(something):
 first=Pipeline()
 first.add_task(send_directly_to_second)
 
-second=Pipeline()
+second=Pipeline(name="some name")
 second.add_task(uppercase_it)
-
-mc.register_pipeline("second", second)
 
 first.start()
 second.start()
@@ -209,8 +204,6 @@ second.join()
 # Should print "HELLO WORLD"
 for result in second.as_completed():
     print(result)
-
-mc.forget_pipeline("second") # Cleanup
 
 ```
 

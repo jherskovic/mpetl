@@ -16,9 +16,9 @@ def conditional_routing(number, pipeline_msg):
     """
     #print("Got", number)
     if number % 2 == 0:
-        pipeline_msg.send_message("even", number)
+        pipeline_msg.send_message("even", [number])
     else:
-        pipeline_msg.send_message("odd", number)
+        pipeline_msg.send_message("odd", [number])
 
 
 def gathering_function(number):

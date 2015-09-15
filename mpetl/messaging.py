@@ -78,11 +78,8 @@ class MessagingCenter(multiprocessing.Process):
         except EOFError:
             return
 
-    def _send_message(self, name, data):
-        self._incoming.put(pipeline_message(name, data))
-
     def send_message(self, name, data):
-        self._send_message(name, [data])
+        self._incoming.put(pipeline_message(name, data))
 
     def register_pipeline_queue(self, name, queue):
         """Starts a background daemonic thread that receives messages and places them in the designated queue."""

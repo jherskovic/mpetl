@@ -24,7 +24,7 @@ class Pipeline(_Pipeline):
         super().start()
         # Register this Pipeline with the central MessagingCenter.
         if self._name:
-            Pipeline._messaging.register_pipeline_queue(self._name, self._queues[0])
+            Pipeline._messaging.register_pipeline_queue(self._name, self.input_queue)
 
     def join(self):
         super().join()
