@@ -126,7 +126,7 @@ it should be used only for very large numbers of fast tasks.
 
 ### Database access
 Database access is expensive and creating connections over and over can chew a lot of overhead. mpetl will let you
-specify a callable that will be called one per process, and that can return a value that will be then passed to your
+specify a callable that will be called once per process, and that can return a value that will be then passed to your
 task function as the *process_persistent* parameter. Give the add_task/origin/destination declaration a *setup*
 parameter that is a callable which returns a single value. For obvious reasons, this callable should be self-contained.
 You can also specify a *teardown* which will receive the same object and can... well... tear it down.
@@ -174,9 +174,8 @@ WEIRDNESS WILL HAPPEN IF YOU IGNORE THIS WARNING.
 
 ### Conditional routing, branching pipelines, etc.
 You can send the output of a pipeline to another pipeline. Do do this, you MUST give
-the destination pipeline a unique name. 
+the destination pipeline a unique name, which must be a hashable value. Please use a string. 
  
-You must also instantiate a MessagingCenter (i.e. the central catalog) before you can do any of this. 
 ```python
 
 from mpetl import Pipeline
