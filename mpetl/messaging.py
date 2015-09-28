@@ -8,7 +8,7 @@ import collections
 import logging
 import traceback
 import weakref
-from .util import SENTINEL, _random_string
+from .util import SENTINEL, _random_string, dprint
 
 pipeline_message = collections.namedtuple(u"pipeline_message", [u"destination", u"data"])
 registration_message = collections.namedtuple(u"registration_message", [u"name", u"queue"])
@@ -28,7 +28,8 @@ class MessagingCenter(multiprocessing.Process):
             MessagingCenter._queue_manager = multiprocessing.Manager()
             MessagingCenter._queue_manager_lock = multiprocessing.Lock()
             # MessagingCenter._queue_manager.start()
-        #self._finalizer = weakref.finalize(self, MessagingCenter._cleanup, self._known_pipelines)
+        # self._finalizer = weakref.finalize(self, MessagingCenter._cleanup, self._known_pipelines)
+        dprint(u"Finished setting up messaging center.")
 
     def _close_outgoing(self):
         for pipeline in self._known_pipelines.values():
@@ -115,6 +116,7 @@ class MessagingCenter(multiprocessing.Process):
 
     def __del__(self):
         pipelines = self._known_pipelines
+        dprint(u"Running cleanup for the MessagingCenter")
         if pipelines is not None:
             for p in pipelines.values():
                 if p is not None:

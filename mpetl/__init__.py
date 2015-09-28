@@ -3,10 +3,12 @@ __author__ = u'Jorge Herskovic <jherskovic@gmail.com>'
 
 from .pipeline import _Pipeline
 from .messaging import MessagingCenter
-
+from .util import dprint, trap_under_nose
 
 # The following class is the one actually meant for instantiation by clients of this library.
 # DO NOT use _Pipeline. Use Pipeline.
+
+
 class Pipeline(_Pipeline):
     _messaging = None
 
@@ -28,10 +30,15 @@ class Pipeline(_Pipeline):
             Pipeline._messaging.register_pipeline_queue(self._name, self.input_queue)
 
     def join(self):
+        if self._name is not None:
+            dprint(u"Joining Pipeline", self._name)
+        else:
+            dprint(u"Joining nameless pipeline.")
         super(Pipeline, self).join()
         # Any pipeline, even a non-named one, may be feeding other pipelines; therefore, after joining,
         # we'll make sure that the pipeline is flushed if there is one.
-        if Pipeline._messaging:
+        if Pipeline._messaging is not None:
+            dprint(u"Flushing messaging center.")
             Pipeline._messaging.flush()
 
     @staticmethod
@@ -46,4 +53,5 @@ class Pipeline(_Pipeline):
     def send(dest, obj):
         Pipeline.send_multiple(dest, [obj])
 
-
+# Attempt to trap a debugging signal if running under nosetests
+trap_under_nose()
