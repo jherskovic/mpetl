@@ -4,7 +4,7 @@ import traceback
 import sys
 import weakref
 from threading import Thread
-from .util import SENTINEL
+from .util import SENTINEL, dprint
 
 __author__ = 'Jorge R. Herskovic <jherskovic@mdanderson.org>'
 
@@ -28,14 +28,16 @@ class _QTask(object):
         self._output = None
 
     def _run_in_process(self, process_num=0):
+        my_name = self._callable.__name__ + str(process_num)
+
+        dprint("Starting loop for", my_name)
+
         persistent = None
         if self._setup is not None:
             persistent = self._setup()
 
         is_generator = inspect.isgeneratorfunction(self._callable)
         outgoing_chunk = []
-
-        my_name = self._callable.__name__ + str(process_num)
 
         while True:
             if self._input() is not None:
