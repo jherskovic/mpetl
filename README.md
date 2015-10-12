@@ -63,6 +63,7 @@ if __name__ == "__main__":
    pipeline.join()
 ```
 
+<!---
 ### More advanced example
 
 Let's say we want to uppercase all of the text in all of the files in a pathspec, in parallel. It will then write them
@@ -118,7 +119,7 @@ if __name__ == "__main__":
         pipeline.feed(filename)
     pipeline.join()
 ```
-
+--->
 ### Chunk size
 IPC overhead can dominate a pipeline if the processing itself is relatively cheap. You can therefore specify a 
 *chunk_size* when calling add_task or its siblings. The results will be gathered in *chunk_size* blocks to be passed 
