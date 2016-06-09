@@ -74,10 +74,9 @@ class _QTask(object):
                                 self._output().put(outgoing_chunk)
                             outgoing_chunk = []
                 else:
-                    if result is None:
+                    if result is not None:
                         # Valueless function, or no result whatsoever.
-                        pass
-                    outgoing_chunk.append(result)
+                        outgoing_chunk.append(result)
 
                 if len(outgoing_chunk) >= self._chunk_size:
                     if self._output() is not None:
