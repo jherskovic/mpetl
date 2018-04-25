@@ -177,6 +177,9 @@ class _Pipeline(object):
     def input_queue(self):
         return self._queues[0]
 
+    def queue_lengths(self):
+        return [x.qsize() for x in self._queues]
+
     def join(self):
         u"""Signals the end of processing, then waits for the associated tasks to end. Once the tasks end,
         puts an end-of processing Sentinel marker in the outgoing queue."""
