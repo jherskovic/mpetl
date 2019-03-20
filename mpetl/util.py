@@ -6,6 +6,11 @@ from multiprocessing import Event
 import sys
 __author__ = u'Jorge R. Herskovic <jherskovic@gmail.com>'
 
+try:
+    setproctitlemodule = None
+    import setproctitle as setproctitlemodule
+except ImportError:
+    pass
 
 def _random_string(length=50):
     return u''.join(random.choice(u'abcdefghijklmnopqrstuvwxyz') for i in xrange(50))
@@ -57,3 +62,11 @@ def trap_under_nose():
     if u'nosetests' in sys.argv[0]:
         print("Nose detected; trapping a signal.")
         enable_siginfo_trap()
+
+
+def process_title(new_title):
+    """Sets the process name if setproctitle is available; otherwise, does nothing."""
+    if setproctitlemodule is None:
+        return
+
+    setproctitlemodule.setproctitle('mpetl ' + new_title)

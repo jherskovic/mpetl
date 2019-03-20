@@ -21,6 +21,14 @@ def iterator_origin(up_to):
 
     return
 
+def chunk_stage(a_chunk):
+    # Should receive a chunk
+    for x in a_chunk:
+        yield x*2
+
+    return
+
+
 class Test_Pipeline(unittest.TestCase):
     def test_basic_pipeline(self):
         self.pipe = _Pipeline()
@@ -104,6 +112,39 @@ class Test_Pipeline(unittest.TestCase):
 
     # def test_very_parallel_pipeline_limited_depth(self):
     #     self.test_very_parallel_pipeline(num_items=1000, pipeline_depth=500)
+
+    def test_chunker(self):
+        self.pipe = _Pipeline()
+        self.pipe.add_task(chunk_stage, wants_chunk=True, chunk_size=3)
+        self.pipe.start()
+        self.pipe.feed(2)
+        self.pipe.feed(3)
+        self.pipe.feed(4)
+        self.pipe.join()
+        result = set([x for x in self.pipe.as_completed()])
+        self.assertEqual(result, set([4, 6, 8]))
+
+    def test_chunker_destination(self):
+        self.pipe = _Pipeline()
+        self.pipe.add_destination(chunk_stage, wants_chunk=True, chunk_size=3)
+        self.pipe.start()
+        self.pipe.feed(2)
+        self.pipe.feed(3)
+        self.pipe.feed(4)
+        self.pipe.join()
+        result = set([x for x in self.pipe.as_completed()])
+        self.assertEqual(result, set([4, 6, 8]))
+
+    def test_chunker_nonmatching_chunk_size(self):
+        self.pipe = _Pipeline()
+        self.pipe.add_task(chunk_stage, wants_chunk=True, chunk_size=2)
+        self.pipe.start()
+        self.pipe.feed(2)
+        self.pipe.feed(3)
+        self.pipe.feed(4)
+        self.pipe.join()
+        result = set([x for x in self.pipe.as_completed()])
+        self.assertEqual(result, set([4, 6, 8]))
 
 
 if __name__ == u'__main__':

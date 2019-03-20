@@ -5,7 +5,7 @@ import traceback
 import sys
 import weakref
 from threading import Thread
-from .util import SENTINEL, dprint
+from .util import SENTINEL, dprint, process_title
 
 __author__ = u'Jorge R. Herskovic <jherskovic@mdanderson.org>'
 
@@ -17,12 +17,13 @@ class SequenceError(Exception):
 class _QTask(object):
     u"""Describes one task in a _Pipeline."""
 
-    def __init__(self, callable, num, chunk_size, setup, teardown, **kwargs):
+    def __init__(self, callable, num, chunk_size, setup, teardown, wants_chunk=False, **kwargs):
         self._callable = callable
         self._num = multiprocessing.cpu_count() if num is None or num < 1 else num
         self._chunk_size = 1 if chunk_size is None or chunk_size < 1 else chunk_size
         self._setup = setup
         self._teardown = teardown
+        self._wants_chunk = wants_chunk
         self._kwargs = kwargs
         self._processes = []
         self._input = None
@@ -30,6 +31,7 @@ class _QTask(object):
 
     def _run_in_process(self, process_num=0):
         my_name = self._callable.__name__ + unicode(process_num)
+        process_title(my_name)
 
         dprint(u"Starting loop for", my_name)
 
@@ -50,21 +52,51 @@ class _QTask(object):
             if chunk == SENTINEL:
                 break
 
-            for item in chunk:
+            if self._wants_chunk is False:
+                # For functions that process things an item at a time.
+                for item in chunk:
+                    try:
+                        if persistent is None:
+                            if isinstance(item, tuple):
+                                result = self._callable(*item, **self._kwargs)
+                            else:
+                                result = self._callable(item, **self._kwargs)
+                        else:
+                            if isinstance(item, tuple):
+                                result = self._callable(*item, process_persistent=persistent, **self._kwargs)
+                            else:
+                                result = self._callable(item, process_persistent=persistent, **self._kwargs)
+                    except:
+                        print >>sys.stderr, u"Exception raised in process", my_name
+                        print >>sys.stderr, traceback.format_exc()
+                        raise
+
+                    if is_generator:
+                        for each_result in result:
+                            outgoing_chunk.append(each_result)
+                            if len(outgoing_chunk) >= self._chunk_size:
+                                if self._output() is not None:
+                                    self._output().put(outgoing_chunk)
+                                outgoing_chunk = []
+                    else:
+                        if result is not None:
+                            # Valueless function, or no result whatsoever.
+                            outgoing_chunk.append(result)
+
+                    if len(outgoing_chunk) >= self._chunk_size:
+                        if self._output() is not None:
+                            self._output().put(outgoing_chunk)
+                        outgoing_chunk = []
+            else:
+                # The task expects to receive a chunk at a time
                 try:
                     if persistent is None:
-                        if isinstance(item, tuple):
-                            result = self._callable(*item, **self._kwargs)
-                        else:
-                            result = self._callable(item, **self._kwargs)
+                        result = self._callable(chunk, **self._kwargs)
                     else:
-                        if isinstance(item, tuple):
-                            result = self._callable(*item, process_persistent=persistent, **self._kwargs)
-                        else:
-                            result = self._callable(item, process_persistent=persistent, **self._kwargs)
+                        result = self._callable(chunk, process_persistent=persistent, **self._kwargs)
                 except:
-                    print >>sys.stderr, u"Exception raised in process", my_name
-                    print >>sys.stderr, traceback.format_exc()
+                    print >> sys.stderr, u"Exception raised in process", my_name
+                    print >> sys.stderr, traceback.format_exc()
                     raise
 
                 if is_generator:
@@ -76,7 +108,6 @@ class _QTask(object):
                             outgoing_chunk = []
                 else:
                     if result is not None:
-                        # Valueless function, or no result whatsoever.
                         outgoing_chunk.append(result)
 
                 if len(outgoing_chunk) >= self._chunk_size:
@@ -126,14 +157,15 @@ class _Pipeline(object):
         #self._finalize = weakref.finalize(self, self._cleanup)
         self._joined = False
 
-    def _new_task(self, callable, num=None, chunk_size=1, setup=None, teardown=None, **kwargs):
+    def _new_task(self, callable, num=None, chunk_size=1, setup=None, teardown=None, wants_chunk=False, **kwargs):
         if self._actual_tasks is not None:
             raise SequenceError(u"You are trying to add a task to a pipeline that already started.")
 
-        return _QTask(callable, num, chunk_size, setup, teardown, **kwargs)
+        return _QTask(callable, num, chunk_size, setup, teardown, wants_chunk=wants_chunk, **kwargs)
 
-    def add_task(self, callable, num=1, chunk_size=1, setup=None, teardown=None, **kwargs):
-        new_task = self._new_task(callable, num=num, chunk_size=chunk_size, setup=setup, teardown=teardown, **kwargs)
+    def add_task(self, callable, num=1, chunk_size=1, setup=None, teardown=None, wants_chunk=False, **kwargs):
+        new_task = self._new_task(callable, num=num, chunk_size=chunk_size, setup=setup, teardown=teardown,
+                                  wants_chunk=wants_chunk, **kwargs)
         self._tasks.append(new_task)
 
     def add_origin(self, *args, **kwargs):
